@@ -1,17 +1,15 @@
 <package format="3">
-    <name>unitree_legged_real</name>
+    <name>unitree_udp_sender</name>
     <version>0.0.0</version>
     <description>The unitree_legged_real package</description>
     <maintainer email="laikago@unitree.cc">unitree</maintainer>
     <license>TODO</license>
-    <buildtool_depend>ament_cmake</buildtool_depend>
-    <buildtool_depend>rosidl_default_generators</buildtool_depend>
-    <build_depend>rcl</build_depend>
-    <build_depend>std_msgs</build_depend>
-    <build_export_depend>roscpp</build_export_depend>
-    <build_export_depend>std_msgs</build_export_depend>
-    <exec_depend>rcl</exec_depend>
-    <exec_depend>rosidl_default_runtime</exec_depend>
+    <buildtool_depend>extension_ament_node</buildtool_depend>
+
+    <depend>rclcpp</depend>
+    <depend>rclcpp_components</depend>
+    <depend>std_msgs</depend>
+    <depend>unitree_legged_sdk</depend>
     <depend>ros2_unitree_legged_msgs</depend>
     <depend>eigen</depend>
 
