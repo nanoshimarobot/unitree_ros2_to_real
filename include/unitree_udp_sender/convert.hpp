@@ -286,21 +286,6 @@ ros2_unitree_legged_msgs::msg::HighState state2rosMsg(UNITREE_LEGGED_SDK::HighSt
   return ros_msg;
 }
 
-geometry_msgs::msg::TwistWithCovariance state2twistWithCovMsg(UNITREE_LEGGED_SDK::HighState & state)
-{
-  geometry_msgs::msg::TwistWithCovariance ret;
-  ret.covariance = {0};
-  ret.twist = state2twistMsg(state);
-  return ret;
-}
-geometry_msgs::msg::PoseWithCovariance state2poseWithCovMsg(UNITREE_LEGGED_SDK::HighState & state)
-{
-  geometry_msgs::msg::PoseWithCovariance ret;
-  ret.covariance = {0};
-  ret.pose = state2poseMsg(state);
-  return ret;
-}
-
 geometry_msgs::msg::Twist state2twistMsg(UNITREE_LEGGED_SDK::HighState & state)
 {
   geometry_msgs::msg::Twist ret;
@@ -323,6 +308,21 @@ geometry_msgs::msg::Pose state2poseMsg(UNITREE_LEGGED_SDK::HighState & state)
   ret.orientation.y = state.imu.quaternion[2];
   ret.orientation.z = state.imu.quaternion[3];
 
+  return ret;
+}
+
+geometry_msgs::msg::TwistWithCovariance state2twistWithCovMsg(UNITREE_LEGGED_SDK::HighState & state)
+{
+  geometry_msgs::msg::TwistWithCovariance ret;
+  ret.covariance = {0};
+  ret.twist = state2twistMsg(state);
+  return ret;
+}
+geometry_msgs::msg::PoseWithCovariance state2poseWithCovMsg(UNITREE_LEGGED_SDK::HighState & state)
+{
+  geometry_msgs::msg::PoseWithCovariance ret;
+  ret.covariance = {0};
+  ret.pose = state2poseMsg(state);
   return ret;
 }
 

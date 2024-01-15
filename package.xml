@@ -12,6 +12,7 @@
     <depend>unitree_legged_sdk</depend>
     <depend>ros2_unitree_legged_msgs</depend>
     <depend>geometry_msgs</depend>
+    <depend>nav_msgs</depend>
     <depend>eigen</depend>
 
     <export>
