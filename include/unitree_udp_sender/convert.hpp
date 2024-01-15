@@ -7,6 +7,7 @@ Use of this source code is governed by the MPL-2.0 license, see LICENSE.
 
 #include <unitree_legged_sdk/unitree_legged_sdk.h>
 
+#include <geometry_msgs/msg/pose.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 
 #include "rclcpp/rclcpp.hpp"
@@ -281,6 +282,31 @@ ros2_unitree_legged_msgs::msg::HighState state2rosMsg(UNITREE_LEGGED_SDK::HighSt
   ros_msg.crc = state.crc;
 
   return ros_msg;
+}
+
+geometry_msgs::msg::Twist state2twistMsg(UNITREE_LEGGED_SDK::HighState & state)
+{
+  geometry_msgs::msg::Twist ret;
+  ret.linear.x = state.velocity[0];
+  ret.linear.y = state.velocity[1];
+  ret.linear.z = state.velocity[2];
+  ret.angular.z = state.yawSpeed;
+
+  return ret;
+}
+
+geometry_msgs::msg::Pose state2poseMsg(UNITREE_LEGGED_SDK::HighState & state)
+{
+  geometry_msgs::msg::Pose ret;
+  ret.position.x = state.position[0];
+  ret.position.y = state.position[1];
+  ret.position.z = state.position[2];
+  ret.orientation.w = state.imu.quaternion[0];
+  ret.orientation.x = state.imu.quaternion[1];
+  ret.orientation.y = state.imu.quaternion[2];
+  ret.orientation.z = state.imu.quaternion[3];
+
+  return ret;
 }
 
 UNITREE_LEGGED_SDK::HighCmd rosMsg2Cmd(const geometry_msgs::msg::Twist::SharedPtr msg)
