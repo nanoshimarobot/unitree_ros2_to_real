@@ -3,8 +3,12 @@
 #include <unitree_legged_sdk/unitree_legged_sdk.h>
 
 #include <chrono>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/header.hpp>
 
 #include "convert.hpp"
 #include "ros2_unitree_legged_msgs/msg/high_cmd.hpp"
@@ -20,10 +24,21 @@ private:
   UT::HighCmd send_cmd_;
 
   rclcpp::Publisher<ros2_unitree_legged_msgs::msg::HighState>::SharedPtr high_state_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr cr_vel_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr cr_pos_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
   rclcpp::Subscription<ros2_unitree_legged_msgs::msg::HighCmd>::SharedPtr high_cmd_sub_;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
 
   rclcpp::TimerBase::SharedPtr main_timer_;
+
+  std_msgs::msg::Header make_header(rclcpp::Time ts, std::string frame)
+  {
+    std_msgs::msg::Header ret;
+    ret.stamp = ts;
+    ret.frame_id = frame;
+    return ret;
+  }
 
 public:
   UnitreeUDPSender(const rclcpp::NodeOptions & options) : UnitreeUDPSender("", options) {}
@@ -39,21 +54,30 @@ public:
 
     high_state_pub_ = this->create_publisher<ros2_unitree_legged_msgs::msg::HighState>(
       "high_state", rclcpp::QoS(1));
+    cr_vel_pub_ =
+      this->create_publisher<geometry_msgs::msg::TwistStamped>("velocity", rclcpp::QoS(1));
+    cr_pos_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("pose", rclcpp::QoS(1));
+    odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("odom", rclcpp::QoS(1));
     high_cmd_sub_ = this->create_subscription<ros2_unitree_legged_msgs::msg::HighCmd>(
       "high_cmd", rclcpp::QoS(1),
       std::bind(&UnitreeUDPSender::high_cmd_cb, this, std::placeholders::_1));
     cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
       "cmd_vel", rclcpp::QoS(1),
       std::bind(&UnitreeUDPSender::cmd_vel_cb, this, std::placeholders::_1));
-    main_timer_ = this->create_wall_timer(0.2ms, [this]() {
+    main_timer_ = this->create_wall_timer(2ms, [this]() {
       high_udp_.SetSend(send_cmd_);
       high_udp_.Send();
       ros2_unitree_legged_msgs::msg::HighState state_msg;
       UT::HighState state;
       high_udp_.Recv();
       high_udp_.GetRecv(state);
-      state_msg = state2rosMsg(state);
-      high_state_pub_->publish(state_msg);
+
+      nav_msgs::msg::Odometry odom;
+      odom.header = make_header(this->get_clock()->now(), "map");
+      odom.pose = state2poseWithCovMsg(state);
+      odom.twist = state2twistWithCovMsg(state);
+
+      odom_pub_->publish(odom);
     });
   }
 

@@ -8,7 +8,9 @@ Use of this source code is governed by the MPL-2.0 license, see LICENSE.
 #include <unitree_legged_sdk/unitree_legged_sdk.h>
 
 #include <geometry_msgs/msg/pose.hpp>
+#include <geometry_msgs/msg/pose_with_covariance.hpp>
 #include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_with_covariance.hpp>
 
 #include "rclcpp/rclcpp.hpp"
 #include "ros2_unitree_legged_msgs/msg/bms_cmd.hpp"
@@ -282,6 +284,21 @@ ros2_unitree_legged_msgs::msg::HighState state2rosMsg(UNITREE_LEGGED_SDK::HighSt
   ros_msg.crc = state.crc;
 
   return ros_msg;
+}
+
+geometry_msgs::msg::TwistWithCovariance state2twistWithCovMsg(UNITREE_LEGGED_SDK::HighState & state)
+{
+  geometry_msgs::msg::TwistWithCovariance ret;
+  ret.covariance = {0};
+  ret.twist = state2twistMsg(state);
+  return ret;
+}
+geometry_msgs::msg::PoseWithCovariance state2poseWithCovMsg(UNITREE_LEGGED_SDK::HighState & state)
+{
+  geometry_msgs::msg::PoseWithCovariance ret;
+  ret.covariance = {0};
+  ret.pose = state2poseMsg(state);
+  return ret;
 }
 
 geometry_msgs::msg::Twist state2twistMsg(UNITREE_LEGGED_SDK::HighState & state)
