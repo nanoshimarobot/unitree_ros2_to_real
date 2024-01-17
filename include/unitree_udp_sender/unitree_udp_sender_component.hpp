@@ -20,7 +20,8 @@ namespace aist_intern2023
 class UnitreeUDPSender : public rclcpp::Node
 {
 private:
-  UT::UDP high_udp_;
+  // UT::UDP high_udp_;
+  std::shared_ptr<UT::UDP> high_udp_;
   UT::HighCmd send_cmd_;
 
   std::string target_ip_address;
@@ -49,7 +50,8 @@ public:
   UnitreeUDPSender(
     const std::string & name_space = "",
     const rclcpp::NodeOptions & options = rclcpp::NodeOptions())
-  : Node("unitree_udp_sender_node", name_space, options)
+  : Node("unitree_udp_sender_node", name_space, options)  //,
+    // high_udp_(8090, "192.168.123.161", 8082, sizeof(UT::HighCmd), sizeof(UT::HighState))
   {
     using namespace std::chrono_literals;
 
@@ -60,11 +62,14 @@ public:
     declare_parameter("udp_settings.target_port", 8082);
     target_port = get_parameter("udp_settings.target_port").as_int();
 
-    high_udp_ = UT::UDP(
+    // high_udp_ = UT::UDP(
+    //   local_port, target_ip_address.c_str(), target_port, sizeof(UT::HighCmd),
+    //   sizeof(UT::HighState));
+    high_udp_ = std::make_shared<UT::UDP>(
       local_port, target_ip_address.c_str(), target_port, sizeof(UT::HighCmd),
       sizeof(UT::HighState));
     UT::HighCmd init_cmd = {0};
-    high_udp_.InitCmdData(init_cmd);
+    high_udp_->InitCmdData(init_cmd);
 
     high_state_pub_ = this->create_publisher<ros2_unitree_legged_msgs::msg::HighState>(
       "high_state", rclcpp::QoS(1));
@@ -79,12 +84,12 @@ public:
       "cmd_vel", rclcpp::QoS(1),
       std::bind(&UnitreeUDPSender::cmd_vel_cb, this, std::placeholders::_1));
     main_timer_ = this->create_wall_timer(2ms, [this]() {
-      high_udp_.SetSend(send_cmd_);
-      high_udp_.Send();
+      high_udp_->SetSend(send_cmd_);
+      high_udp_->Send();
       ros2_unitree_legged_msgs::msg::HighState state_msg;
       UT::HighState state;
-      high_udp_.Recv();
-      high_udp_.GetRecv(state);
+      high_udp_->Recv();
+      high_udp_->GetRecv(state);
 
       nav_msgs::msg::Odometry odom;
       odom.header = make_header(this->get_clock()->now(), "map");
@@ -99,13 +104,13 @@ public:
   {
     UT::HighCmd cmd = rosMsg2Cmd(msg);
 
-    high_udp_.SetSend(cmd);
-    high_udp_.Send();
+    high_udp_->SetSend(cmd);
+    high_udp_->Send();
 
     ros2_unitree_legged_msgs::msg::HighState state_msg;
     UT::HighState state;
-    high_udp_.Recv();
-    high_udp_.GetRecv(state);
+    high_udp_->Recv();
+    high_udp_->GetRecv(state);
     state_msg = state2rosMsg(state);
 
     high_state_pub_->publish(state_msg);
