@@ -23,6 +23,10 @@ private:
   UT::UDP high_udp_;
   UT::HighCmd send_cmd_;
 
+  std::string target_ip_address;
+  uint16_t local_port;
+  uint16_t target_port;
+
   rclcpp::Publisher<ros2_unitree_legged_msgs::msg::HighState>::SharedPtr high_state_pub_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr cr_vel_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr cr_pos_pub_;
@@ -45,10 +49,20 @@ public:
   UnitreeUDPSender(
     const std::string & name_space = "",
     const rclcpp::NodeOptions & options = rclcpp::NodeOptions())
-  : Node("unitree_udp_sender_node", name_space, options),
-    high_udp_(8090, "192.168.12.1", 8082, sizeof(UT::HighCmd), sizeof(UT::HighState))
+  : Node("unitree_udp_sender_node", name_space, options)
   {
     using namespace std::chrono_literals;
+
+    declare_parameter("udp_settings.target_ip_address", "192.168.123.161");
+    target_ip_address = get_parameter("udp_settings.target_ip_address").as_string();
+    declare_parameter("udp_settings.local_port", 8090);
+    local_port = get_parameter("udp_settings.local_port").as_int();
+    declare_parameter("udp_settings.target_port", 8082);
+    target_port = get_parameter("udp_settings.target_port").as_int();
+
+    high_udp_ = UT::UDP(
+      local_port, target_ip_address.c_str(), target_port, sizeof(UT::HighCmd),
+      sizeof(UT::HighState));
     UT::HighCmd init_cmd = {0};
     high_udp_.InitCmdData(init_cmd);
 
