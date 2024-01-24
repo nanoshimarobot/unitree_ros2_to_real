@@ -100,31 +100,31 @@ UNITREE_LEGGED_SDK::MotorCmd rosMsg2Cmd(const ros2_unitree_legged_msgs::msg::Mot
   return cmd;
 }
 
-UNITREE_LEGGED_SDK::LowCmd rosMsg2Cmd(const ros2_unitree_legged_msgs::msg::LowCmd::SharedPtr & msg)
+UNITREE_LEGGED_SDK::LowCmd rosMsg2Cmd(const ros2_unitree_legged_msgs::msg::LowCmd & msg)
 {
   UNITREE_LEGGED_SDK::LowCmd cmd;
 
   for (int i(0); i < 2; i++) {
-    cmd.head[i] = msg->head[i];
-    cmd.SN[i] = msg->sn[i];
-    cmd.version[i] = msg->version[i];
+    cmd.head[i] = msg.head[i];
+    cmd.SN[i] = msg.sn[i];
+    cmd.version[i] = msg.version[i];
   }
 
   for (int i(0); i < 40; i++) {
-    cmd.wirelessRemote[i] = msg->wireless_remote[i];
+    cmd.wirelessRemote[i] = msg.wireless_remote[i];
   }
 
   for (int i(0); i < 20; i++) {
-    cmd.motorCmd[i] = rosMsg2Cmd(msg->motor_cmd[i]);
+    cmd.motorCmd[i] = rosMsg2Cmd(msg.motor_cmd[i]);
   }
 
-  cmd.bms = rosMsg2Cmd(msg->bms);
+  cmd.bms = rosMsg2Cmd(msg.bms);
 
-  cmd.levelFlag = msg->level_flag;
-  cmd.frameReserve = msg->frame_reserve;
-  cmd.bandWidth = msg->band_width;
-  cmd.reserve = msg->reserve;
-  cmd.crc = msg->crc;
+  cmd.levelFlag = msg.level_flag;
+  cmd.frameReserve = msg.frame_reserve;
+  cmd.bandWidth = msg.band_width;
+  cmd.reserve = msg.reserve;
+  cmd.crc = msg.crc;
 
   return cmd;
 }
@@ -326,7 +326,7 @@ geometry_msgs::msg::PoseWithCovariance state2poseWithCovMsg(UNITREE_LEGGED_SDK::
   return ret;
 }
 
-UNITREE_LEGGED_SDK::HighCmd rosMsg2Cmd(const geometry_msgs::msg::Twist::SharedPtr msg)
+UNITREE_LEGGED_SDK::HighCmd rosMsg2Cmd(const geometry_msgs::msg::Twist msg)
 {
   UNITREE_LEGGED_SDK::HighCmd cmd;
   cmd.head[0] = 0xFE;
@@ -345,9 +345,9 @@ UNITREE_LEGGED_SDK::HighCmd rosMsg2Cmd(const geometry_msgs::msg::Twist::SharedPt
   cmd.yawSpeed = 0.0f;
   cmd.reserve = 0;
 
-  cmd.velocity[0] = msg->linear.x;
-  cmd.velocity[1] = msg->linear.y;
-  cmd.yawSpeed = msg->angular.z;
+  cmd.velocity[0] = msg.linear.x;
+  cmd.velocity[1] = msg.linear.y;
+  cmd.yawSpeed = msg.angular.z;
 
   cmd.mode = 2;
   cmd.gaitType = 1;

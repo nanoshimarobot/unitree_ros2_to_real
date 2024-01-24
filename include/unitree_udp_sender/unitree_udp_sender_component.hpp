@@ -9,12 +9,17 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/header.hpp>
+#include <std_srvs/srv/set_bool.hpp>
 
 #include "convert.hpp"
 #include "ros2_unitree_legged_msgs/msg/high_cmd.hpp"
 #include "ros2_unitree_legged_msgs/msg/high_state.hpp"
 
 // namespace UT = UNITREE_LEGGED_SDK;
+
+// emg state (bool)
+// - True -> emg stop
+// - False -> can move
 namespace aist_intern2023
 {
 class UnitreeUDPSender : public rclcpp::Node
@@ -23,6 +28,8 @@ private:
   // UT::UDP high_udp_;
   std::shared_ptr<UT::UDP> high_udp_;
   UT::HighCmd send_cmd_;
+
+  bool cr_emg_state_ = false;
 
   std::string target_ip_address;
   uint16_t local_port;
@@ -34,6 +41,8 @@ private:
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
   rclcpp::Subscription<ros2_unitree_legged_msgs::msg::HighCmd>::SharedPtr high_cmd_sub_;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
+
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr emg_switch_srv_;
 
   rclcpp::TimerBase::SharedPtr main_timer_;
 
@@ -83,6 +92,8 @@ public:
     cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
       "cmd_vel", rclcpp::QoS(1),
       std::bind(&UnitreeUDPSender::cmd_vel_cb, this, std::placeholders::_1));
+    emg_switch_srv_ = this->create_service<std_srvs::srv::SetBool>(
+      "emg_switch", std::bind(&UnitreeUDPSender::emg_switch_call, this, std::placeholders::_1, std::placeholders::_2));
     main_timer_ = this->create_wall_timer(2ms, [this]() {
       high_udp_->SetSend(send_cmd_);
       high_udp_->Send();
@@ -116,6 +127,30 @@ public:
     high_state_pub_->publish(state_msg);
   }
 
-  void cmd_vel_cb(const geometry_msgs::msg::Twist::SharedPtr msg) { send_cmd_ = rosMsg2Cmd(msg); }
+  void cmd_vel_cb(const geometry_msgs::msg::Twist::SharedPtr msg)
+  {
+    if (cr_emg_state_) {
+      geometry_msgs::msg::Twist stop_msg;
+      stop_msg.linear.x = 0.0;
+      stop_msg.linear.y = 0.0;
+      stop_msg.linear.z = 0.0;
+      stop_msg.angular.x = 0.0;
+      stop_msg.angular.y = 0.0;
+      stop_msg.angular.z = 0.0;
+      send_cmd_ = rosMsg2Cmd(stop_msg);
+    } else {
+      send_cmd_ = rosMsg2Cmd(*msg);
+    }
+  }
+
+  void emg_switch_call(
+    const std_srvs::srv::SetBool::Request::SharedPtr req,
+    const std_srvs::srv::SetBool::Response::SharedPtr res)
+  {
+    cr_emg_state_ = req->data;
+    res->success = true;
+    res->message = cr_emg_state_ ? "Unitree Go1 cmd_vel control was Deactivated"
+                                 : "Unitree Go1 cmd_vel control was Activated";
+  }
 };
 }  // namespace aist_intern2023
