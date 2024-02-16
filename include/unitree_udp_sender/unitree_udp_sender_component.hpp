@@ -110,8 +110,11 @@ public:
         &UnitreeUDPSender::emg_switch_call, this, std::placeholders::_1, std::placeholders::_2));
     main_timer_ = this->create_wall_timer(2ms, [this]() {
       if (!motion_cmd_.empty()) {
-        high_udp_->SetSend(motion_cmd_[motion_execution_cnt_++]);
+        high_udp_->SetSend(motion_cmd_[motion_execution_cnt_]);
         high_udp_->Send();
+        // RCLCPP_INFO(this->get_logger(), "%f, %f, %f",motion_cmd_[motion_execution_cnt_].euler[0],motion_cmd_[motion_execution_cnt_].euler[1],motion_cmd_[motion_execution_cnt_].euler[2]);
+        
+        ++motion_execution_cnt_;
         if (motion_execution_cnt_ >= motion_cmd_.size()) {
           motion_cmd_.clear();
           motion_execution_cnt_ = 0;
@@ -153,7 +156,7 @@ public:
 
   void consecutive_motion_cb(const ros2_unitree_legged_msgs::msg::HighCmdArray::SharedPtr msg)
   {
-    if (msg->high_cmd.empty() || msg->total_execution_time < 1) {
+    if (msg->high_cmd.empty() || msg->total_execution_time < 1 || !motion_cmd_.empty()) {
       return;
     }
     // rpy only
@@ -199,6 +202,10 @@ public:
           motion_cmd_.push_back(cmd);
         }
       }
+      motion_cmd_.push_back(rosMsg2Cmd(std::make_shared<ros2_unitree_legged_msgs::msg::HighCmd>(msg->high_cmd.back())));
+      send_cmd_.mode = 1;
+      // motion_cmd_.back().mode = 0;
+      //RCLCPP_INFO(this->get_logger(), "WEEEEEEEE");
       motion_execution_cnt_ = 0;
     }
   }
