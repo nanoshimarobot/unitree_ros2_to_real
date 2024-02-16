@@ -13,6 +13,7 @@
 
 #include "convert.hpp"
 #include "ros2_unitree_legged_msgs/msg/high_cmd.hpp"
+#include "ros2_unitree_legged_msgs/msg/high_cmd_array.hpp"
 #include "ros2_unitree_legged_msgs/msg/high_state.hpp"
 
 // namespace UT = UNITREE_LEGGED_SDK;
@@ -28,6 +29,7 @@ private:
   // UT::UDP high_udp_;
   std::shared_ptr<UT::UDP> high_udp_;
   UT::HighCmd send_cmd_;
+  UT::HighState cr_state_;
 
   bool cr_emg_state_ = false;
 
@@ -35,11 +37,16 @@ private:
   uint16_t local_port;
   uint16_t target_port;
 
+  std::vector<UT::HighCmd> motion_cmd_;
+  size_t motion_execution_cnt_ = 0;
+
   rclcpp::Publisher<ros2_unitree_legged_msgs::msg::HighState>::SharedPtr high_state_pub_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr cr_vel_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr cr_pos_pub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
   rclcpp::Subscription<ros2_unitree_legged_msgs::msg::HighCmd>::SharedPtr high_cmd_sub_;
+  rclcpp::Subscription<ros2_unitree_legged_msgs::msg::HighCmdArray>::SharedPtr
+    consecutive_motion_sub_;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
 
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr emg_switch_srv_;
@@ -71,6 +78,7 @@ public:
     declare_parameter("udp_settings.target_port", 8082);
     target_port = get_parameter("udp_settings.target_port").as_int();
 
+    send_cmd_.euler = {0.f, 0.f, 0.f};
     // high_udp_ = UT::UDP(
     //   local_port, target_ip_address.c_str(), target_port, sizeof(UT::HighCmd),
     //   sizeof(UT::HighState));
@@ -89,18 +97,34 @@ public:
     high_cmd_sub_ = this->create_subscription<ros2_unitree_legged_msgs::msg::HighCmd>(
       "high_cmd", rclcpp::QoS(1),
       std::bind(&UnitreeUDPSender::high_cmd_cb, this, std::placeholders::_1));
+    consecutive_motion_sub_ =
+      this->create_subscription<ros2_unitree_legged_msgs::msg::HighCmdArray>(
+        "consecutive_motion", rclcpp::QoS(1),
+        std::bind(&UnitreeUDPSender::consecutive_motion_cb, this, std::placeholders::_1));
     cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
       "cmd_vel", rclcpp::QoS(1),
       std::bind(&UnitreeUDPSender::cmd_vel_cb, this, std::placeholders::_1));
     emg_switch_srv_ = this->create_service<std_srvs::srv::SetBool>(
-      "emg_switch", std::bind(&UnitreeUDPSender::emg_switch_call, this, std::placeholders::_1, std::placeholders::_2));
+      "emg_switch",
+      std::bind(
+        &UnitreeUDPSender::emg_switch_call, this, std::placeholders::_1, std::placeholders::_2));
     main_timer_ = this->create_wall_timer(2ms, [this]() {
-      high_udp_->SetSend(send_cmd_);
-      high_udp_->Send();
+      if (!motion_cmd_.empty()) {
+        high_udp_->SetSend(motion_cmd_[motion_execution_cnt_++]);
+        high_udp_->Send();
+        if (motion_execution_cnt_ >= motion_cmd_.size()) {
+          motion_cmd_.clear();
+          motion_execution_cnt_ = 0;
+        }
+      } else {
+        high_udp_->SetSend(send_cmd_);
+        high_udp_->Send();
+      }
       ros2_unitree_legged_msgs::msg::HighState state_msg;
       UT::HighState state;
       high_udp_->Recv();
       high_udp_->GetRecv(state);
+      cr_state_ = state;
 
       nav_msgs::msg::Odometry odom;
       odom.header = make_header(this->get_clock()->now(), "map");
@@ -113,18 +137,70 @@ public:
 
   void high_cmd_cb(const ros2_unitree_legged_msgs::msg::HighCmd::SharedPtr msg)
   {
-    UT::HighCmd cmd = rosMsg2Cmd(msg);
+    if (cr_emg_state_) {
+      geometry_msgs::msg::Twist stop_msg;
+      stop_msg.linear.x = 0.0;
+      stop_msg.linear.y = 0.0;
+      stop_msg.linear.z = 0.0;
+      stop_msg.angular.x = 0.0;
+      stop_msg.angular.y = 0.0;
+      stop_msg.angular.z = 0.0;
+      send_cmd_ = rosMsg2Cmd(stop_msg);
+    } else {
+      send_cmd_ = rosMsg2Cmd(msg);
+    }
+  }
 
-    high_udp_->SetSend(cmd);
-    high_udp_->Send();
+  void consecutive_motion_cb(const ros2_unitree_legged_msgs::msg::HighCmdArray::SharedPtr msg)
+  {
+    if (msg->high_cmd.empty() || msg->total_execution_time < 1) {
+      return;
+    }
+    // rpy only
+    // end pose is necessary
+    if (cr_emg_state_) {
+      geometry_msgs::msg::Twist stop_msg;
+      stop_msg.linear.x = 0.0;
+      stop_msg.linear.y = 0.0;
+      stop_msg.linear.z = 0.0;
+      stop_msg.angular.x = 0.0;
+      stop_msg.angular.y = 0.0;
+      stop_msg.angular.z = 0.0;
+      send_cmd_ = rosMsg2Cmd(stop_msg);
+    } else {
+      float total_execution_time = msg->total_execution_time;
+      int cmd_size_per_motion =
+        static_cast<int>(static_cast<int>(total_execution_time / 0.002) / msg->high_cmd.size());
+      int total_motion_cmd_size = cmd_size_per_motion * msg->high_cmd.size();
+      motion_cmd_.clear();
 
-    ros2_unitree_legged_msgs::msg::HighState state_msg;
-    UT::HighState state;
-    high_udp_->Recv();
-    high_udp_->GetRecv(state);
-    state_msg = state2rosMsg(state);
+      std::vector<std::array<float, 3>> motion_base;
+      motion_base.push_back(send_cmd_.euler);  // syoki ti
+      for (size_t i = 0; i < msg->high_cmd.size(); ++i) {
+        motion_base.push_back(msg->high_cmd[i].euler);
+      }
 
-    high_state_pub_->publish(state_msg);
+      UT::HighCmd cmd;
+      cmd =
+        rosMsg2Cmd(std::make_shared<ros2_unitree_legged_msgs::msg::HighCmd>(msg->high_cmd.front()));
+      for (size_t i = 1; i < motion_base.size(); ++i) {
+        auto start = motion_base[i - 1];
+        auto end = motion_base[i];
+        double r_per_motion =
+          static_cast<double>(end[0] - start[0]) / static_cast<double>(cmd_size_per_motion);
+        double p_per_motion =
+          static_cast<double>(end[1] - start[1]) / static_cast<double>(cmd_size_per_motion);
+        double y_per_motion =
+          static_cast<double>(end[2] - start[2]) / static_cast<double>(cmd_size_per_motion);
+        for (size_t i = 0; i < cmd_size_per_motion; ++i) {
+          cmd.euler[0] = static_cast<float>(r_per_motion * static_cast<double>(i));
+          cmd.euler[1] = static_cast<float>(p_per_motion * static_cast<double>(i));
+          cmd.euler[2] = static_cast<float>(y_per_motion * static_cast<double>(i));
+          motion_cmd_.push_back(cmd);
+        }
+      }
+      motion_execution_cnt_ = 0;
+    }
   }
 
   void cmd_vel_cb(const geometry_msgs::msg::Twist::SharedPtr msg)
