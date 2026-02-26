@@ -1,5 +1,5 @@
 <package format="3">
-    <name>unitree_udp_sender</name>
+    <name>unitree_legged_real</name>
     <version>0.0.0</version>
     <description>The unitree_legged_real package</description>
     <maintainer email="laikago@unitree.cc">unitree</maintainer>

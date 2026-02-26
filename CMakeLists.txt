@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(unitree_udp_sender)
+project(unitree_legged_real)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -67,11 +67,29 @@ rclcpp_components_register_node(unitree_udp_sender_component
   EXECUTABLE unitree_udp_sender
 )
 
+# Create simple executable (original repo style)
+add_executable(ros2_udp src/ros2_udp.cpp)
+target_include_directories(ros2_udp PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(ros2_udp
+  rclcpp
+  ros2_unitree_legged_msgs
+)
+if(EXISTS "${UNITREE_SDK_PATH}/include")
+  target_link_libraries(ros2_udp ${extra_lib})
+endif()
+
 # Install
 install(TARGETS unitree_udp_sender_component
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
+)
+
+install(TARGETS ros2_udp
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY include/
