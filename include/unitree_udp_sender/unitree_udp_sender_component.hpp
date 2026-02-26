@@ -36,6 +36,11 @@ private:
 
   bool cr_emg_state_ = false;
 
+  // For tick-based timestamp synchronization
+  bool tick_initialized_ = false;
+  uint32_t initial_tick_ = 0;
+  rclcpp::Time initial_ros_time_;
+
   std::string target_ip_address;
   uint16_t local_port;
   uint16_t target_port;
@@ -65,6 +70,34 @@ private:
     ret.stamp = ts;
     ret.frame_id = frame;
     return ret;
+  }
+
+  rclcpp::Time tick_to_ros_time(uint32_t tick)
+  {
+    if (!tick_initialized_) {
+      // Initialize on first tick
+      tick_initialized_ = true;
+      initial_tick_ = tick;
+      initial_ros_time_ = this->get_clock()->now();
+      return initial_ros_time_;
+    }
+    
+    // Calculate elapsed time in milliseconds (handle overflow)
+    int64_t tick_diff;
+    if (tick >= initial_tick_) {
+      tick_diff = static_cast<int64_t>(tick - initial_tick_);
+    } else {
+      // Handle uint32_t overflow
+      tick_diff = static_cast<int64_t>(static_cast<uint64_t>(tick) + 
+                                        (static_cast<uint64_t>(1) << 32) - 
+                                        static_cast<uint64_t>(initial_tick_));
+    }
+    
+    // Convert milliseconds to nanoseconds and add to initial ROS time
+    int64_t elapsed_ns = tick_diff * 1000000LL;  // ms to ns
+    rclcpp::Time result_time = initial_ros_time_ + rclcpp::Duration(0, elapsed_ns);
+    
+    return result_time;
   }
 
 public:
@@ -163,7 +196,11 @@ public:
       low_udp_->GetRecv(low_state);
       low_cr_state_ = low_state;
 
-      ros2_unitree_legged_msgs::msg::LowState low_state_msg = state2rosMsg(low_state);
+      // Create timestamp from Go1's tick (motion controller time in ms)
+      rclcpp::Time low_state_time = tick_to_ros_time(low_state.tick);
+      
+      ros2_unitree_legged_msgs::msg::LowState low_state_msg = 
+        state2rosMsg(low_state, low_state_time, "base_link");
       low_state_pub_->publish(low_state_msg);
     });
   }

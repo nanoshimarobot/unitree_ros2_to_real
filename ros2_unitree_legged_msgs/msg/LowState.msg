@@ -1,3 +1,4 @@
+std_msgs/Header header
 
 uint8[2] head
 uint8 level_flag
@@ -11,7 +12,7 @@ MotorState[20] motor_state
 BmsState bms
 int16[4] foot_force	
 int16[4] foot_force_est	
-uint32 tick						
+uint32 tick						# reference real-time from motion controller (unit: ms)
 uint8[40] wireless_remote 
 uint32 reserve
 

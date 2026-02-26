@@ -191,9 +191,16 @@ ros2_unitree_legged_msgs::msg::BmsState state2rosMsg(UNITREE_LEGGED_SDK::BmsStat
   return ros_msg;
 }
 
-ros2_unitree_legged_msgs::msg::LowState state2rosMsg(UNITREE_LEGGED_SDK::LowState & state)
+ros2_unitree_legged_msgs::msg::LowState state2rosMsg(
+  UNITREE_LEGGED_SDK::LowState & state,
+  const rclcpp::Time & timestamp,
+  const std::string & frame_id = "base_link")
 {
   ros2_unitree_legged_msgs::msg::LowState ros_msg;
+
+  // Set header with timestamp from Go1's motion controller (tick in ms)
+  ros_msg.header.stamp = timestamp;
+  ros_msg.header.frame_id = frame_id;
 
   for (int i(0); i < 2; i++) {
     ros_msg.head[i] = state.head[i];

@@ -396,6 +396,12 @@ ros2 topic hz /low_state
 # データ型を確認
 ros2 topic info /low_state
 
+# タイムスタンプを確認（Go1のtickベース）
+ros2 topic echo /low_state/header
+
+# tickの生値を確認（モーションコントローラーからのms）
+ros2 topic echo /low_state/tick
+
 # 特定のデータのみ表示（例: 0番目の関節の角度）
 ros2 topic echo /low_state/motor_state[0]/q
 
@@ -404,6 +410,18 @@ ros2 topic echo /low_state/imu
 
 # バッテリー状態のみ表示
 ros2 topic echo /low_state/bms
+```
+
+#### タイムスタンプの確認
+
+Go1のモーションコントローラーからの`tick`が正しくheaderのタイムスタンプに変換されているか確認：
+
+```bash
+# タイムスタンプとtickを同時に表示
+ros2 topic echo /low_state --field header.stamp --field tick
+
+# タイムスタンプの差分を確認（毎回約2ms = 500Hz）
+ros2 topic echo /low_state/header/stamp
 ```
 
 ### 関節情報の確認
@@ -478,6 +496,9 @@ ros2 bag play <bag_file_name>
 
 `/low_state`トピックには以下の詳細な情報が含まれます：
 
+- **header**: 標準的なROS2 Header
+  - `stamp`: タイムスタンプ（Go1のモーションコントローラーからの`tick`を基準に計算）
+  - `frame_id`: "base_link"
 - **motor_state[20]**: 全20個の関節の状態
   - `mode`: 制御モード
   - `q`: 関節角度 [rad]
@@ -501,8 +522,19 @@ ros2 bag play <bag_file_name>
   - `cell_vol[10]`: セル電圧
   - `bq_ntc[2]`, `mcu_ntc[2]`: 温度センサー値
 - **wireless_remote[40]**: ワイヤレスリモコンの入力
-- **tick**: タイムスタンプ
+- **tick**: モーションコントローラーからのタイムスタンプ [ms]（Go1側の時刻）
 - その他: `head`, `sn`, `version`, `reserve`, `crc`
+
+#### タイムスタンプについて
+
+Low Stateの`header.stamp`は、Go1のモーションコントローラーから送信される`tick`フィールド（ミリ秒単位）を基準に生成されます：
+
+1. **最初のメッセージ受信時**: `tick`の初期値とその時点のPC時刻を記録
+2. **以降のメッセージ**: `tick`の差分を計算し、PC時刻に加算してタイムスタンプを生成
+
+この方法により、Go1側の時間軸を保ちながら、PC時刻との同期を取ることができます。UDP通信の遅延は含まれますが、Go1内部での相対的な時間関係は正確に保持されます。
+
+**重要**: `tick`はGo1の起動時刻を基準とした相対時刻のため、絶対時刻ではありません。初回受信時にPC時刻と同期することで、ROS2のタイムスタンプとして利用できるようにしています。
 
 ## パラメータ
 
@@ -711,7 +743,19 @@ A: ノードを起動しただけでは動きません。`/cmd_vel`トピック�
 ### Q6: Windows や macOS で使用できますか？
 
 A: このパッケージはLinux専用です。ROS2はWindows/macOSでも動作しますが、unitree_legged_sdkがLinuxのみをサポートしているためです。WSL2（Windows Subsystem for Linux）を使用すれば、Windows上でも動作する可能性があります。
+### Q8: Low Stateのタイムスタンプは正確ですか？
 
+A: `header.stamp`は**Go1のモーションコントローラーからの`tick`を基準**に生成されます：
+
+- **利点**: Go1内部での相対的な時間関係は正確に保持されます（500Hzで安定）
+- **注意点**: UDP通信の遅延（通常1-5ms程度）が含まれます
+- **初期化**: 最初のメッセージ受信時にPC時刻と同期します
+
+絶対時刻の精度が重要な場合は、NTPでPC時刻を同期し、rosbagに記録する際の`header.stamp`を利用してください。Go1内部でのイベント相対時刻（例：関節角度とIMUデータの同期）は高精度です。
+
+### Q9: tickがオーバーフローした場合はどうなりますか？
+
+A: `tick`はuint32_t（約49.7日でオーバーフロー）ですが、本パッケージはオーバーフローを自動的に処理します。連続稼働時も時刻情報は正常に動作します。
 ## 参考リンク
 
 - [Unitree Robotics 公式サイト](https://www.unitree.com/)
@@ -724,6 +768,11 @@ A: このパッケージはLinux専用です。ROS2はWindows/macOSでも動作�
 バグ報告や機能追加のリクエストは、GitHubのIssuesでお願いします。プルリクエストも歓迎します。
 
 ## 更新履歴
+
+- **v0.3.0** (2026-02-26)
+  - **LowStateにstd_msgs/Headerを追加**
+  - Go1のモーションコントローラーからの`tick`を利用した時刻同期機能を実装
+  - タイムスタンプがGo1側の相対時刻を反映するようになった
 
 - **v0.2.0** (2026-02-26)
   - **リポジトリ構成を単一リポジトリに統合**
