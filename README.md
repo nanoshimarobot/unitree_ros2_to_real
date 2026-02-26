@@ -3,12 +3,15 @@
 このパッケージはUnitreeロボット（Go1など）をROS2から制御するためのインターフェースです。
 High-level制御（歩行方向・速度）とLow-level制御（全関節制御）の両方に対応しています。
 
+**🎉 このリポジトリ単体で完結**: メッセージ定義（`ros2_unitree_legged_msgs`）も含まれており、このリポジトリをクローンするだけで全て揃います。
+
 ## 機能
 
 - High-level制御: `/cmd_vel`トピックでロボットの移動を制御
 - High State購読: ロボットの状態を`/high_state`トピックで取得
 - **Low State購読: ロボットの詳細な状態（関節角度、トルクなど）を`/low_state`トピックで取得** ✨
 - Odometry配信: `/odom`トピックでオドメトリ情報を配信
+- **独自メッセージ定義**: 12種類のメッセージ型が含まれており、追加のリポジトリ不要
 
 ## 📋 目次
 
@@ -41,15 +44,19 @@ cd ~/ros2_dog_ws/src
 # 2. このリポジトリをクローン（既にある場合はスキップ）
 git clone <このリポジトリのURL> unitree_ros2_to_real
 
-# 3. Unitree SDK をインストール
+# 3. メッセージパッケージのシンボリックリンクを作成
+# （このステップで ros2_unitree_legged_msgs を colcon が検出できるようにします）
+ln -s unitree_ros2_to_real/ros2_unitree_legged_msgs ros2_unitree_legged_msgs
+
+# 4. Unitree SDK をインストール
 cd unitree_ros2_to_real
 git clone https://github.com/unitreerobotics/unitree_legged_sdk.git
 
-# 4. ビルド
+# 5. ビルド
 cd ~/ros2_dog_ws
 colcon build --symlink-install
 
-# 5. 環境設定を読み込み
+# 6. 環境設定を読み込み
 source install/setup.bash
 
 # 6. ネットワーク設定（ロボットと接続後）
@@ -123,10 +130,31 @@ cd ~/ros2_dog_ws/src
 ### 2. このパッケージの取得
 
 ```bash
-# このリポジトリをクローン（または既存のものを使用）
+# このリポジトリをクローン
 cd ~/ros2_dog_ws/src
-# git clone <このリポジトリのURL> unitree_ros2_to_real
+git clone <このリポジトリのURL> unitree_ros2_to_real
 ```
+
+### 2.5. メッセージパッケージのシンボリックリンク作成
+
+このリポジトリには `ros2_unitree_legged_msgs` が含まれていますが、colconがそれを検出できるよう、シンボリックリンクを作成します：
+
+```bash
+cd ~/ros2_dog_ws/src
+ln -s unitree_ros2_to_real/ros2_unitree_legged_msgs ros2_unitree_legged_msgs
+
+# パッケージが検出されることを確認
+cd ~/ros2_dog_ws
+colcon list
+# 以下のように2つのパッケージが表示されればOK:
+# ros2_unitree_legged_msgs
+# unitree_udp_sender
+```
+
+**なぜシンボリックリンクが必要？**
+- colconはデフォルトで `src` 直下のパッケージを検出します
+- `unitree_ros2_to_real/ros2_unitree_legged_msgs` のようにネストされたパッケージは検出されません
+- シンボリックリンクを使うことで、実際のファイルは `unitree_ros2_to_real` 内に残したまま、colconに検出させることができます
 
 ### 3. Unitree Legged SDK のインストール
 
@@ -166,6 +194,45 @@ source ~/ros2_dog_ws/install/setup.bash
 # .bashrcに追加しておくと便利
 echo "source ~/ros2_dog_ws/install/setup.bash" >> ~/.bashrc
 ```
+
+## リポジトリ構造
+
+このリポジトリは以下の構造になっています：
+
+```
+unitree_ros2_to_real/
+├── CMakeLists.txt              # メインパッケージのビルド設定
+├── package.xml                 # メインパッケージの依存関係
+├── README.md                   # このファイル
+├── LICENSE
+├── include/
+│   └── unitree_udp_sender/     # ヘッダーファイル
+│       ├── convert.hpp         # メッセージ変換関数
+│       └── unitree_udp_sender_component.hpp  # メインコンポーネント
+├── src/
+│   └── unitree_udp_sender_component.cpp  # 実装ファイル
+├── ros2_unitree_legged_msgs/   # メッセージ定義パッケージ（このリポジトリに含まれる）
+│   ├── CMakeLists.txt
+│   ├── package.xml
+│   └── msg/                    # 12種類のメッセージ定義
+│       ├── BmsCmd.msg
+│       ├── BmsState.msg
+│       ├── Cartesian.msg
+│       ├── HighCmd.msg
+│       ├── HighCmdArray.msg
+│       ├── HighState.msg
+│       ├── IMU.msg
+│       ├── LED.msg
+│       ├── LowCmd.msg
+│       ├── LowState.msg
+│       ├── MotorCmd.msg
+│       └── MotorState.msg
+└── unitree_legged_sdk/         # Unitree SDK（別途クローン）
+    ├── include/
+    └── lib/
+```
+
+**重要**: `ros2_unitree_legged_msgs` はこのリポジトリに含まれているため、別途クローンする必要はありません。
 
 ## ネットワーク設定
 
@@ -605,11 +672,15 @@ sudo tcpdump -i <インターフェース名> udp port 8007 or udp port 8082
 
 A: Unitree Go1ロボットに対応しています。他のUnitreeロボット（A1、Aliengoなど）でも動作する可能性がありますが、unitree_legged_sdk v3.5.1との互換性を確認してください。
 
-### Q2: シミュレータで動作確認できますか？
+### Q2: ros2_unitree_legged_msgsは別途インストールが必要ですか？
+
+A: **不要です**。`ros2_unitree_legged_msgs` はこのリポジトリに含まれています。シンボリックリンクを作成するだけで使用できます。
+
+### Q3: シミュレータで動作確認できますか？
 
 A: このパッケージは実機との通信専用です。シミュレーション環境での動作確認には、Gazeboとunitree_ros2を使用することをお勧めします。
 
-### Q3: Low StateとHigh Stateの違いは何ですか？
+### Q4: Low StateとHigh Stateの違いは何ですか？
 
 A:
 - **High State**: 歩行制御レベルの情報（姿勢、速度、フットステップなど）
@@ -617,7 +688,7 @@ A:
 
 Low Stateを使うことで、より細かい制御やデータ収集が可能になります。
 
-### Q4: 複数のロボットを同時に制御できますか？
+### Q5: 複数のロボットを同時に制御できますか？
 
 A: はい、可能です。各ロボットに対して異なるIPアドレスとパラメータを設定してノードを複数起動してください：
 
@@ -653,6 +724,12 @@ A: このパッケージはLinux専用です。ROS2はWindows/macOSでも動作�
 バグ報告や機能追加のリクエストは、GitHubのIssuesでお願いします。プルリクエストも歓迎します。
 
 ## 更新履歴
+
+- **v0.2.0** (2026-02-26)
+  - **リポジトリ構成を単一リポジトリに統合**
+  - `ros2_unitree_legged_msgs` をリポジトリ内に含めて依存関係を簡素化
+  - シンボリックリンクを使用したビルド方法を導入
+  - ドキュメントを大幅に拡充
 
 - **v0.1.0** (2026-02-26)
   - Low State購読機能を追加
