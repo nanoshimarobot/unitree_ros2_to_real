@@ -28,19 +28,25 @@ class UnitreeUDPSender : public rclcpp::Node
 private:
   // UT::UDP high_udp_;
   std::shared_ptr<UT::UDP> high_udp_;
+  std::shared_ptr<UT::UDP> low_udp_;
   UT::HighCmd send_cmd_;
   UT::HighState cr_state_;
+  UT::LowCmd low_send_cmd_;
+  UT::LowState low_cr_state_;
 
   bool cr_emg_state_ = false;
 
   std::string target_ip_address;
   uint16_t local_port;
   uint16_t target_port;
+  uint16_t low_local_port;
+  uint16_t low_target_port;
 
   std::vector<UT::HighCmd> motion_cmd_;
   size_t motion_execution_cnt_ = 0;
 
   rclcpp::Publisher<ros2_unitree_legged_msgs::msg::HighState>::SharedPtr high_state_pub_;
+  rclcpp::Publisher<ros2_unitree_legged_msgs::msg::LowState>::SharedPtr low_state_pub_;
   rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr cr_vel_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr cr_pos_pub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
@@ -77,6 +83,10 @@ public:
     local_port = get_parameter("udp_settings.local_port").as_int();
     declare_parameter("udp_settings.target_port", 8082);
     target_port = get_parameter("udp_settings.target_port").as_int();
+    declare_parameter("udp_settings.low_local_port", 8007);
+    low_local_port = get_parameter("udp_settings.low_local_port").as_int();
+    declare_parameter("udp_settings.low_target_port", 8007);
+    low_target_port = get_parameter("udp_settings.low_target_port").as_int();
 
     send_cmd_.euler = {0.f, 0.f, 0.f};
     // high_udp_ = UT::UDP(
@@ -88,8 +98,17 @@ public:
     UT::HighCmd init_cmd = {0};
     high_udp_->InitCmdData(init_cmd);
 
+    // Initialize low level UDP
+    low_udp_ = std::make_shared<UT::UDP>(
+      low_local_port, target_ip_address.c_str(), low_target_port, sizeof(UT::LowCmd),
+      sizeof(UT::LowState));
+    UT::LowCmd low_init_cmd = {0};
+    low_udp_->InitCmdData(low_init_cmd);
+
     high_state_pub_ = this->create_publisher<ros2_unitree_legged_msgs::msg::HighState>(
       "high_state", rclcpp::QoS(1));
+    low_state_pub_ = this->create_publisher<ros2_unitree_legged_msgs::msg::LowState>(
+      "low_state", rclcpp::QoS(1));
     cr_vel_pub_ =
       this->create_publisher<geometry_msgs::msg::TwistStamped>("velocity", rclcpp::QoS(1));
     cr_pos_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("pose", rclcpp::QoS(1));
@@ -135,6 +154,17 @@ public:
       odom.twist = state2twistWithCovMsg(state);
 
       odom_pub_->publish(odom);
+
+      // Low level communication
+      low_udp_->SetSend(low_send_cmd_);
+      low_udp_->Send();
+      low_udp_->Recv();
+      UT::LowState low_state;
+      low_udp_->GetRecv(low_state);
+      low_cr_state_ = low_state;
+
+      ros2_unitree_legged_msgs::msg::LowState low_state_msg = state2rosMsg(low_state);
+      low_state_pub_->publish(low_state_msg);
     });
   }
 

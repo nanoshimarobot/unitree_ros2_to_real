@@ -4,16 +4,14 @@
     <description>The unitree_legged_real package</description>
     <maintainer email="laikago@unitree.cc">unitree</maintainer>
     <license>TODO</license>
-    <buildtool_depend>extension_ament_node</buildtool_depend>
+    <buildtool_depend>ament_cmake</buildtool_depend>
 
     <depend>rclcpp</depend>
     <depend>rclcpp_components</depend>
     <depend>std_msgs</depend>
-    <depend>unitree_legged_sdk</depend>
     <depend>ros2_unitree_legged_msgs</depend>
     <depend>geometry_msgs</depend>
     <depend>nav_msgs</depend>
-    <depend>eigen</depend>
     <depend>std_srvs</depend>
 
     <export>
